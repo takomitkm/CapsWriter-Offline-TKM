@@ -272,3 +272,41 @@ RTF 越难看——RTF 这个指标本身对短句不友好，看绝对耗时更
   的 GGUF 转换件 `cstr/qwen3-asr-1.7b-GGUF`（Apache-2.0）。
 - 完整的第三方组件与许可见
   `core/server/engines/firedasr_onnx/chain/THIRD_PARTY_NOTICES.md`。
+
+---
+
+## 6. 同步上游（手动）
+
+本 fork 不配自动同步：GitHub 的 Sync fork 是手点的，而仓库一旦有自己的提交就不能指望它；
+塞一个第三方 repo-sync Action 又等于把写权限交给别人的代码。所以约定是——想跟上时跑这几条。
+
+```bat
+:: 只有第一次需要
+git remote add upstream https://github.com/HaujetZhao/CapsWriter-Offline.git
+git remote set-url --push upstream no_push_upstream_please_use_origin
+
+git fetch upstream master
+git merge upstream/master
+python check_fork_engines.py
+git push origin master
+```
+
+先看差多少再合：
+
+```bat
+git rev-list --left-right --count upstream/master...origin/master
+```
+
+输出的两个数依次是"上游有你没有的"和"你有上游没有的"。2026-10-31 实测 `0 2`
+（上游 0、本 fork 2 个提交），也就是此刻仓库里已经是上游的全部最新代码。
+
+- **直连 GitHub 被 reset 时**，每条 git 命令前加 `-c http.proxy=http://127.0.0.1:<你的代理端口>`。
+- **冲突政策**：撞车就手工合，不要 `-X ours` / `-X theirs`，不要 `--abort` 之后改成 squash 或
+  rebase 上游提交。本 fork 会插在五个上游也会动的文件里：`readme.md`、`config_server.py`、
+  `.gitignore`、`core/server/engines/factory.py`、`core/server/worker/check_model.py`。
+  这五个是预期的冲突点，不是意外。
+- **合完必须跑 `python check_fork_engines.py`**（仓库根目录，只读校验：不加载模型、不起子进程、
+  不起 HTTP 服务，25 项检查，全过才 exit 0）。上游若改了 `engines/base.py` 的
+  `EngineCapabilities`、`EngineFactory` 的注册表结构、或引擎 config 的 dataclass 字段名，
+  它会当场 FAIL——那是两路引擎被上游打断的最早信号，比启动服务端等超时快得多。
+  它报 FAIL 就先别 push。
