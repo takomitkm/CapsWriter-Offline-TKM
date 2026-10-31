@@ -55,10 +55,15 @@ TL;DR：在 `config_server.py` 里把 `ServerConfig.model_type` 改成
 
 ### 为什么要独立子进程
 
-CapsWriter 自带的 onnxruntime 只有 DirectML 与 CPU 两个 Execution Provider。
-CUDA 版 onnxruntime 与它同名同模块，装进同一个环境会互相顶掉，所以推理只能另起
-一个带 CUDA EP 的 Python 环境，主进程通过 stdin/stdout 的逐行 JSON 协议说话。
-代价是启动多 9~15 s（模型加载在那个子进程里），换来的是编码器能吃到 CUDA。
+CapsWriter 自带的 onnxruntime 只有 DirectML 与 CPU 两个 Execution Provider（打包目录里
+有 `DirectML.dll`、没有 CUDA provider）。CUDA 版 onnxruntime 与它同名同模块，装进同一个
+环境会互相顶掉，所以推理只能另起一个带 CUDA EP 的 Python 环境，主进程通过 stdin/stdout
+的逐行 JSON 协议说话。代价是启动多 9~15 s（模型加载在那个子进程里），换来的是编码器能吃到 CUDA。
+
+那个子进程环境里不装 sherpa-onnx、funasr 或 PyTorch，`requirements-cuda.txt` 只有 8 个包。
+CapsWriter 主进程自带的 sherpa-onnx 与这条链无关（上游只有 Paraformer 和 CT-Transformer
+标点调它，SenseVoice 跟本链一样直接用 onnxruntime）。AED 权重是从 k2-fsa/sherpa-onnx 的
+Release 下载的，所以目录名叫 `sherpa-onnx-fire-red-asr2-...`——那是模型来源，不是依赖。
 
 ### 复原步骤
 
@@ -199,6 +204,25 @@ RTF 由日志原样给出，两个引擎各有多次采样，表里取最小~最
 FireRedPunc 0.097 s = 3.797 s，比引擎总计 3.858 s 少 0.061 s（分片之间的调度开销）。
 解码器占引擎总计的 67.7%（2.610/3.858）——那是带自回归 step 的 int8 图在 CPU EP 上跑；
 编码器已经是 f32 CUDA。
+
+短句另有一组采样（引擎行日志原样摘录，13 条 `RTF` 与 `耗时/音频` 逐条重算过，最大偏差 0.0005，是日志四舍五入）：
+
+| 音频 | `firedasr_onnx` 引擎 | `crispasr_qwen3` 引擎 |
+|---:|---|---|
+| 2.25 s | 1.792 s（RTF 0.796） | 未测 |
+| 3.0 s | 0.614 s（0.205） | 0.926 s（0.309） |
+| 3.6 s | 0.754 s（0.209） | 未测 |
+| 4.7 s | 1.286 s（0.274） | 未测 |
+| 6.45 s | 1.122 s（0.174） | 未测 |
+| 13.85 s | 未测 | 2.703 s（0.195） |
+| 16.45 s | 3.858 s（0.235） | 2.921~3.115 s（0.178~0.189） |
+| 22.40 s | 未测 | 3.659 s（0.163） |
+
+`firedasr_onnx` 那条 0.796 不是短音频本身的代价：那次 VAD 0.728 s + Punc 0.465 s
+= 1.193 s，占 1.792 s 的 66.6%，是该次启动后 VAD/Punc 会话第一次推理；同批次后来的
+3.0~6.45 s 片段里 VAD 只有 0.015~0.027 s、Punc 0.026~0.037 s，RTF 落回 0.174~0.274。
+编码器在 3~6.45 s 片段上有 0.377~0.462 s 的下限，跟片段长度几乎无关，所以音频越短
+RTF 越难看——RTF 这个指标本身对短句不友好，看绝对耗时更准。
 
 启动耗时（服务端 `全系统初始化完成，耗时` 那行）：
 

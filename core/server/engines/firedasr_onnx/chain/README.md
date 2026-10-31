@@ -2,7 +2,10 @@
 
 这是 CapsWriter-Offline fork 中 `firedasr_onnx` 引擎的推理实现：FireRedVAD 切语音 →
 FireRedASR2-AED 贪心解码（f32 编码器 + int8 解码器）→ FireRedPunc 补标点。
-全链路只依赖 onnxruntime，不需要 PyTorch、sherpa-onnx 或 funasr。
+推理只用 onnxruntime：跑它的那个独立 Python 环境里不装 PyTorch、sherpa-onnx 或 funasr。
+CapsWriter 主进程自带一份 sherpa-onnx（上游 Paraformer 和 CT-Transformer 标点用它），
+与本链无关；AED 权重本身是从 k2-fsa/sherpa-onnx 的 Release 下载的——那是模型来源，
+不是运行时依赖。上游的 SenseVoice 同样不走 sherpa，它直接用 onnxruntime。
 
 ## 来源与改动
 
