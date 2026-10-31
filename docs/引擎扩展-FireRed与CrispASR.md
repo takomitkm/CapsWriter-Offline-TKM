@@ -297,8 +297,9 @@ git push origin master
 git rev-list --left-right --count upstream/master...origin/master
 ```
 
-输出的两个数依次是"上游有你没有的"和"你有上游没有的"。2026-10-31 实测 `0 2`
-（上游 0、本 fork 2 个提交），也就是此刻仓库里已经是上游的全部最新代码。
+输出的两个数依次是"上游有你没有的"和"你有上游没有的"。第一个数是 0，就说明仓库已经
+包含上游的全部提交；2026-10-31（`origin/master` = `9c55880`）实测 `0 3`——上游 0、
+本 fork 自己的 3 个提交。
 
 - **直连 GitHub 被 reset 时**，每条 git 命令前加 `-c http.proxy=http://127.0.0.1:<你的代理端口>`。
 - **冲突政策**：撞车就手工合，不要 `-X ours` / `-X theirs`，不要 `--abort` 之后改成 squash 或
