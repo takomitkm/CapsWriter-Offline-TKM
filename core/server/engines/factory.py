@@ -5,6 +5,7 @@ from config_server import (
     ServerConfig as Config,
     ParaformerArgs, SenseVoiceArgs, 
     FunASRNanoGGUFArgs, Qwen3ASRGGUFArgs,
+    FireRedOnnxArgs, CrispAsrQwen3Args,
     ModelPaths, ForceAlignerGGUFArgs
 )
 
@@ -39,11 +40,23 @@ class EngineFactory:
         from .qwen_asr_gguf.asr_engine import QwenASREngine, ASREngineConfig as QwenASRConfig
         return QwenASREngine, QwenASRConfig, Qwen3ASRGGUFArgs
 
+    @staticmethod
+    def _load_firedasr_onnx():
+        from .firedasr_onnx.asr_engine import FireRedOnnxEngine, FireRedOnnxConfig
+        return FireRedOnnxEngine, FireRedOnnxConfig, FireRedOnnxArgs
+
+    @staticmethod
+    def _load_crispasr_qwen3():
+        from .crispasr_qwen3.asr_engine import CrispAsrQwen3Engine, CrispAsrQwen3Config
+        return CrispAsrQwen3Engine, CrispAsrQwen3Config, CrispAsrQwen3Args
+
     _ASR_LOADERS = {
         'sensevoice': _load_sensevoice,
         'paraformer': _load_paraformer,
         'fun_asr_nano': _load_fun_asr_nano,
-        'qwen_asr': _load_qwen_asr
+        'qwen_asr': _load_qwen_asr,
+        'firedasr_onnx': _load_firedasr_onnx,
+        'crispasr_qwen3': _load_crispasr_qwen3
     }
 
     @staticmethod

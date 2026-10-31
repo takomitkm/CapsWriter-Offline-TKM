@@ -56,6 +56,23 @@ def check_model() -> None:
             ModelPaths.qwen3_asr_gguf_encoder_backend,
             ModelPaths.qwen3_asr_gguf_llm_decode,
         ]
+    elif model_type == 'firedasr_onnx':
+        model_dir = ModelPaths.firedasr_onnx_dir
+        required_files = [
+            ModelPaths.firedasr_onnx_python,
+            ModelPaths.firedasr_onnx_encoder,
+            ModelPaths.firedasr_onnx_encoder_data,
+            ModelPaths.firedasr_onnx_decoder,
+            ModelPaths.firedasr_onnx_tokens,
+            ModelPaths.firedasr_onnx_punc_model,
+            ModelPaths.firedasr_onnx_vad_model,
+        ]
+    elif model_type == 'crispasr_qwen3':
+        model_dir = ModelPaths.crispasr_dir
+        required_files = [
+            ModelPaths.crispasr_exe,
+            ModelPaths.crispasr_qwen3_model,
+        ]
     else:
         error_msg = f"不支持的模型类型: {Config.model_type}"
         logger.error(error_msg)
@@ -67,6 +84,8 @@ def check_model() -> None:
     - 'sensevoice'
     - 'paraformer'
     - 'qwen_asr'
+    - 'firedasr_onnx'
+    - 'crispasr_qwen3'
 
         ''', style='bright_red')
         input('按回车退出')
@@ -93,11 +112,15 @@ def check_model() -> None:
                 error_msg += f'\n模型文件似乎错放到了上级目录，请确保放到：[bold yellow]{model_dir}[/bold yellow]\n'
                 break
 
-        # 提供统一下载页面链接
-        error_msg += f'\n模型发布页面：\n'
-        error_msg += f'[cyan]{ModelDownloadLinks.models_page}[/cyan]\n\n'
+        # 提供下载与放置说明
+        if model_type in ('firedasr_onnx', 'crispasr_qwen3'):
+            error_msg += f'\n下载与放置说明：\n'
+            error_msg += f'[cyan]docs/引擎扩展-FireRed与CrispASR.md[/cyan]\n\n'
+        else:
+            error_msg += f'\n模型发布页面：\n'
+            error_msg += f'[cyan]{ModelDownloadLinks.models_page}[/cyan]\n\n'
 
-        error_msg += f'请根据发布页说明，将模型解压到 [cyan]{ModelPaths.model_dir}[/cyan] 下的正确目录\n'
+        error_msg += f'请根据说明，将模型放到 [cyan]{ModelPaths.model_dir}[/cyan] 下的正确目录\n'
         error_msg += '\n'
         
         logger.error(error_msg)

@@ -8,12 +8,18 @@ __version__ = '2.6'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def _env_path(name: str, default: Path) -> Path:
+    value = os.environ.get(name, '').strip()
+    return Path(value) if value else default
+
+
 # 服务端配置
 class ServerConfig:
     addr = '0.0.0.0'
     port = '6016'
 
-    # 语音模型选择：'qwen_asr', 'fun_asr_nano', 'sensevoice', 'paraformer'
+    # 语音模型选择：'qwen_asr', 'fun_asr_nano', 'sensevoice', 'paraformer',
+    #              'firedasr_onnx', 'crispasr_qwen3'（后两路由本 fork 增加）
     model_type = 'qwen_asr'
 
     format_num = True       # 输出时是否将中文数字转为阿拉伯数字
@@ -85,6 +91,26 @@ class ModelPaths:
     force_aligner_gguf_encoder_frontend = force_aligner_gguf_dir / 'qwen3_aligner_encoder_frontend.int4.onnx'
     force_aligner_gguf_encoder_backend = force_aligner_gguf_dir / 'qwen3_aligner_encoder_backend.int4.onnx'
     force_aligner_gguf_llm_decode = force_aligner_gguf_dir / 'qwen3_aligner_llm.q5_k.gguf'
+
+    # FireRedASR2-AED 纯 ONNX 链路：代码随仓库，模型用 chain/fetch_assets.py 补全
+    firedasr_onnx_dir = model_dir / 'FireRedASR2-ONNX-AED'
+    firedasr_onnx_model_dir = firedasr_onnx_dir / 'sherpa-onnx-fire-red-asr2-zh_en-int8-2026-02-26'
+    firedasr_onnx_encoder = firedasr_onnx_model_dir / 'encoder.f32.onnx'
+    firedasr_onnx_encoder_data = firedasr_onnx_model_dir / 'encoder.f32.onnx.data'
+    firedasr_onnx_decoder = firedasr_onnx_model_dir / 'decoder.int8.onnx'
+    firedasr_onnx_tokens = firedasr_onnx_model_dir / 'tokens.txt'
+    firedasr_onnx_punc_dir = firedasr_onnx_dir / 'fireredpunc-onnx'
+    firedasr_onnx_punc_model = firedasr_onnx_punc_dir / 'punc.f32.onnx'
+    firedasr_onnx_vad_dir = firedasr_onnx_dir / 'fireredvad-onnx'
+    firedasr_onnx_vad_model = firedasr_onnx_vad_dir / 'model.onnx'
+    firedasr_onnx_chain_dir = Path(BASE_DIR) / 'core' / 'server' / 'engines' / 'firedasr_onnx' / 'chain'
+    firedasr_onnx_python = firedasr_onnx_dir / (
+        'env/Scripts/python.exe' if os.name == 'nt' else 'env/bin/python')
+
+    # CrispASR：独立发布的 CLI + GGUF
+    crispasr_dir = model_dir / 'CrispASR'
+    crispasr_exe = crispasr_dir / ('crispasr.exe' if os.name == 'nt' else 'crispasr')
+    crispasr_qwen3_model = crispasr_dir / 'qwen3-asr-1.7b-q8_0.gguf'
 
 
 
@@ -173,4 +199,44 @@ class ForceAlignerGGUFArgs:
     # 对齐细节
     n_ctx = 4096                # 上下文窗口大小
     dml_pad_to = 30             # 开启 DirectML 加速时，短音频统一填充到指定长度，有加速效果
+
+
+class FireRedOnnxArgs:
+    """FireRedASR2-AED 纯 ONNX 链路参数配置。
+
+    推理在独立进程里跑；onnx_provider 出厂 cuda，没有 CUDA EP 会直接报错退出，
+    不会静默退回 CPU。路径均可用环境变量覆盖，见 docs/引擎扩展-FireRed与CrispASR.md。
+    """
+    chain_dir = _env_path('FIREDASR_ONNX_CHAIN_DIR', ModelPaths.firedasr_onnx_chain_dir).resolve().as_posix()
+    model_dir = _env_path('FIREDASR_ONNX_MODEL_DIR', ModelPaths.firedasr_onnx_model_dir).resolve().as_posix()
+    punc_dir = _env_path('FIREDASR_ONNX_PUNC_DIR', ModelPaths.firedasr_onnx_punc_dir).resolve().as_posix()
+    vad_dir = _env_path('FIREDASR_ONNX_VAD_DIR', ModelPaths.firedasr_onnx_vad_dir).resolve().as_posix()
+    python_exe = _env_path('FIREDASR_ONNX_PYTHON', ModelPaths.firedasr_onnx_python).resolve().as_posix()
+
+    sample_rate = 16000
+    onnx_provider = os.environ.get('FIREDASR_ONNX_PROVIDER', 'cuda').strip().lower()
+    graph = 'mixed'             # f32 编码器 + int8 解码器
+    mode = 'greedy'             # 贪心解码；beam 更慢且没有稳定收益
+    threads = 4                 # ONNX 会话线程数
+    punc_threads = 4            # FireRedPunc 的 BERT 在 CPU 上跑
+    use_vad = True              # FireRedVAD 先切语音、去掉长静音
+    piece_max = 10.0            # VAD 段按停顿聚到 <=10 s 再送 AED
+    start_timeout = 240         # 等模型就绪的上限
+
+
+class CrispAsrQwen3Args:
+    """Qwen3-ASR-1.7B（CrispASR）参数配置。
+
+    推理跑在 crispasr.exe 的常驻 HTTP 服务里，本进程只发 WAV。
+    实测（RTX 4060 Laptop，16.45 s 音频热态）：2.92~3.12 s，RTF 0.178~0.189。
+    """
+    exe_path = _env_path('CRISPASR_EXE', ModelPaths.crispasr_exe).resolve().as_posix()
+    model_path = _env_path('CRISPASR_MODEL', ModelPaths.crispasr_qwen3_model).resolve().as_posix()
+
+    backend = 'qwen3'           # 实测用这个后端加载 1.7B q8_0
+    language = 'zh'             # 中文听写固定 zh
+    gpu_backend = 'cuda'        # 只用 NVIDIA CUDA
+    sample_rate = 16000
+    warmup = True               # 起服务后先用 0.5 s 噪声吃掉 CUDA 首推理开销
+    start_timeout = 240         # 等模型加载 + 就绪的上限
 

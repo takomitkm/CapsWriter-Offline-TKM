@@ -1,5 +1,10 @@
 # CapsWriter-Offline
 
+> **本仓库是 [HaujetZhao/CapsWriter-Offline](https://github.com/HaujetZhao/CapsWriter-Offline) 的 fork。**
+> 上游代码与 MIT 许可原样保留，这里只做增量：新增 `firedasr_onnx`、`crispasr_qwen3` 两路引擎
+> 和它们的文档、许可声明。没有向上游提 PR，跟上游走 merge。
+> 详见 [docs/引擎扩展-FireRed与CrispASR.md](docs/引擎扩展-FireRed与CrispASR.md)。
+
 ![demo](assets/demo.png)
 
 > **按住 CapsLock 说话，松开就上屏。就这么简单。**
@@ -40,6 +45,27 @@
 | Fun-ASR-Nano | 2.0s | 0.5s |
 | Qwen3-ASR-1.7B | 4.0s | 1.0s |
 
+## 本 fork 新增的引擎
+
+上面四路是上游原有的。下面两路是本 fork 加的，用同样的 `ServerConfig.model_type` 切换，
+客户端、角色、文件转录等都照旧；两路都不支持服务端热词注入（`hot-server.txt`），
+客户端的 `hot.txt` / `hot-rule.txt` 替换照常生效。
+
+| 引擎名 | `model_type` | 格式 | 显卡加速 | 实测 RTF（RTX 4060 Laptop） |
+|------|-------|------|---------|---------|
+| FireRedASR2-AED 纯 ONNX | `firedasr_onnx` | ONNX（f32 编码器 + int8 解码器） | ✅ CUDA | 0.235 |
+| Qwen3-ASR-1.7B（CrispASR） | `crispasr_qwen3` | GGUF q8_0，常驻 HTTP 服务 | ✅ CUDA | 0.178~0.189 |
+
+`firedasr_onnx` 的推理链（FireRedVAD → AED 贪心 → FireRedPunc）代码取自
+[takomitkm/High-Accuracy-Offline-ASR](https://github.com/takomitkm/High-Accuracy-Offline-ASR)
+的 `gpu` 分支，随仓库放在 `core/server/engines/firedasr_onnx/chain/`；
+`crispasr_qwen3` 的推理走 [CrispStrobe/CrispASR](https://github.com/CrispStrobe/CrispASR)。
+两路的模型与二进制都不入库，运行时必需的外部文件合计 7,390,806,133 B（≈7.39 GB）。
+
+用这两路有两条硬要求：**必须 `python start_server.py` 从源码启动**（打包 exe 里没有这两路代码），
+以及按文档把模型补齐。完整步骤、环境变量、实测数字与排查见
+[docs/引擎扩展-FireRed与CrispASR.md](docs/引擎扩展-FireRed与CrispASR.md)。
+
 详细功能说明请参考 [`docs/`](docs/) 目录：
 - [环境依赖安装说明](docs/环境依赖安装说明.md) — VC++ 运行库、FFmpeg 安装
 - [热词功能如何使用](docs/热词功能如何使用.md) — 热词替换、规则替换、自定义短语
@@ -48,6 +74,7 @@
 - [文件转录功能如何使用](docs/文件转录功能如何使用.md) — 拖拽转字幕、时间戳对齐
 - [显卡加速的若干问题](docs/显卡加速的若干问题.md) — DirectML、Vulkan 加速配置
 - [模型下载的若干问题](docs/模型下载的若干问题.md) — 引擎选择、模型下载、目录结构
+- [引擎扩展-FireRed与CrispASR](docs/引擎扩展-FireRed与CrispASR.md) — 本 fork 新增两路引擎的部署与排查
 - [常见问题](docs/常见问题.md) — FAQ
 - [更新日志](docs/CHANGELOG.md) 
 

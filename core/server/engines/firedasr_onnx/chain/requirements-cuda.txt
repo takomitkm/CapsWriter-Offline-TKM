@@ -1,0 +1,14 @@
+# CUDA 版运行时：CapsWriter fork 的 firedasr_onnx 引擎实测用这一套。
+# 实测环境：Windows x64 / CPython 3.13.11 / onnxruntime-gpu 1.30.0 /
+#           RTX 4060 Laptop / 驱动 616.92（CUDA UMD 13.4）。
+# 装了这个就不要再装 requirements.txt 里的 CPU 版 onnxruntime；
+# CUDA / cuDNN 版本按所装 onnxruntime-gpu 的官方要求配。
+
+numpy==2.5.3
+onnxruntime-gpu==1.30.0
+soundfile==0.14.0
+scipy==1.18.1
+tokenizers==0.23.2
+kaldi-native-fbank==1.22.3
+kaldiio==2.18.1
+Send2Trash==2.1.0
