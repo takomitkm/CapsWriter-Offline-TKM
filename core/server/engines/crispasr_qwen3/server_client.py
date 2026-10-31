@@ -190,8 +190,9 @@ class CrispAsrServerClient:
         try:
             return json.loads(raw.decode("utf-8"))
         except UnicodeDecodeError as ex:
-            # crispasr 0.8.37 的 /inference 会把一个汉字的 3 个 UTF-8 字节拆进相邻 token 的
-            # segments[].text，整个响应体因此非法；text/duration 字段本身是完好的。
+            # /inference 的 segments[].tokens[].text 是逐 token 的字节片段，byte-level BPE 会把
+            # 一个汉字的 3 个 UTF-8 字节拆到相邻 token 里，响应体因此整体非法 UTF-8；
+            # 顶层 text 与 /v1/audio/transcriptions 都不受影响。
             logger.warning(f"CrispASR 响应非法 UTF-8（{ex.reason} @ {ex.start}），"
                            f"改用 replace 解析")
             return json.loads(raw.decode("utf-8", "replace"))
