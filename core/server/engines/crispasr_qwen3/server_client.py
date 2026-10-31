@@ -181,12 +181,20 @@ class CrispAsrServerClient:
             method="POST")
         try:
             with _OPENER.open(req, timeout=timeout) as r:
-                return json.loads(r.read().decode("utf-8"))
+                raw = r.read()
         except urllib.error.HTTPError as ex:
             detail = ex.read().decode("utf-8", "replace")[:500]
             raise CrispAsrError(f"HTTP {ex.code}: {detail}")
         except urllib.error.URLError as ex:
             raise CrispAsrError(f"连不上 CrispASR 服务：{ex.reason}")
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except UnicodeDecodeError as ex:
+            # crispasr 0.8.37 的 /inference 会把一个汉字的 3 个 UTF-8 字节拆进相邻 token 的
+            # segments[].text，整个响应体因此非法；text/duration 字段本身是完好的。
+            logger.warning(f"CrispASR 响应非法 UTF-8（{ex.reason} @ {ex.start}），"
+                           f"改用 replace 解析")
+            return json.loads(raw.decode("utf-8", "replace"))
 
     def request(self, pcm, sr, timeout=None):
         with self._lock:
