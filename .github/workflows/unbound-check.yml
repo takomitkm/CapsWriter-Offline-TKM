@@ -1,0 +1,67 @@
+name: unbound-check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pyright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pyright
+        run: npm install -g pyright
+
+      - name: Check changed Python files
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          # 新分支首次 push 时 before 是全 0，用与默认分支的 merge-base
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            DEFAULT="${{ github.event.repository.default_branch }}"
+            git fetch origin "$DEFAULT"
+            BASE=$(git merge-base HEAD "origin/$DEFAULT" 2>/dev/null || true)
+          fi
+          if [ -z "$BASE" ]; then
+            BASE=$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)
+          fi
+
+          mapfile -t FILES < <(git diff --name-only "$BASE" -- '*.py' | grep -v '^core/server/engines/' || true)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "没有改动的 Python 文件"
+            exit 0
+          fi
+          printf '检查文件:\n%s\n' "${FILES[@]}"
+
+          pyright --outputjson "${FILES[@]}" > pyright.json || true
+          python - <<'PY'
+          import json
+          import sys
+
+          with open("pyright.json", encoding="utf-8") as f:
+              report = json.load(f)
+
+          bad = [
+              d for d in report.get("generalDiagnostics", [])
+              if d.get("rule") == "reportPossiblyUnboundVariable"
+          ]
+          for d in bad:
+              line = d["range"]["start"]["line"] + 1
+              print(f'{d["file"]}:{line}: {d["message"]}')
+          sys.exit(1 if bad else 0)
+          PY
