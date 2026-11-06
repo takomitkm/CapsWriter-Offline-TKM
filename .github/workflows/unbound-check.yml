@@ -23,45 +23,46 @@ jobs:
         run: npm install -g pyright
 
       - name: Check changed Python files
-        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: python
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-          else
-            BASE="${{ github.event.before }}"
-          fi
-
-          # 新分支首次 push 时 before 是全 0，用与默认分支的 merge-base
-          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
-            DEFAULT="${{ github.event.repository.default_branch }}"
-            git fetch origin "$DEFAULT"
-            BASE=$(git merge-base HEAD "origin/$DEFAULT" 2>/dev/null || true)
-          fi
-          if [ -z "$BASE" ]; then
-            BASE=$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)
-          fi
-
-          mapfile -t FILES < <(git diff --name-only "$BASE" -- '*.py' | grep -v '^core/server/engines/' || true)
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "没有改动的 Python 文件"
-            exit 0
-          fi
-          printf '检查文件:\n%s\n' "${FILES[@]}"
-
-          pyright --outputjson "${FILES[@]}" > pyright.json || true
-          python - <<'PY'
           import json
+          import os
+          import subprocess
           import sys
 
-          with open("pyright.json", encoding="utf-8") as f:
-              report = json.load(f)
+          def git(*args):
+              return subprocess.check_output(["git", *args])
 
-          bad = [
-              d for d in report.get("generalDiagnostics", [])
-              if d.get("rule") == "reportPossiblyUnboundVariable"
-          ]
+          base = os.environ["BASE_SHA"]
+          if not base or base == "0" * 40:
+              default = os.environ["DEFAULT_BRANCH"]
+              git("fetch", "origin", f"refs/heads/{default}:refs/remotes/origin/{default}")
+              base = git("merge-base", "HEAD", f"origin/{default}").decode().strip()
+
+          comparison = f"{base}...HEAD" if os.environ["EVENT_NAME"] == "pull_request" else base
+          paths = git("diff", "--name-only", "--diff-filter=ACMRT", "-z", comparison, "--", "*.py")
+          files = [os.fsdecode(p) for p in paths.split(b"\0") if p]
+          files = [p for p in files if not p.startswith("core/server/engines/")]
+          if not files:
+              print("没有改动的 Python 文件")
+              sys.exit(0)
+
+          print("检查文件:", *files, sep="\n", flush=True)
+          result = subprocess.run(["pyright", "--outputjson", *files], capture_output=True, text=True)
+          if result.stderr:
+              print(result.stderr, file=sys.stderr)
+          if result.returncode not in (0, 1):
+              raise RuntimeError(f"Pyright 执行失败，退出码 {result.returncode}")
+          report = json.loads(result.stdout)
+          diagnostics = report["generalDiagnostics"]
+          rules = {"reportPossiblyUnboundVariable", "reportUnboundVariable"}
+          bad = [d for d in diagnostics if d.get("rule") in rules or
+                 (d["severity"] == "error" and not d.get("rule"))]
           for d in bad:
               line = d["range"]["start"]["line"] + 1
               print(f'{d["file"]}:{line}: {d["message"]}')
           sys.exit(1 if bad else 0)
-          PY
