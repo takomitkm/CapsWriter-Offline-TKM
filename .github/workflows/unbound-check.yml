@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install test dependencies
-        run: python -m pip install rich PyYAML
+        run: python -m pip install rich PyYAML colorama
       - name: Queue and CI regressions
         run: python tests/review_regressions.py
       - name: File transcription regressions
