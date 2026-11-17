@@ -193,3 +193,5 @@ models/**/*.cfg
 models/FireRedASR2-ONNX-AED/
 models/CrispASR/
 *.gguf
+# 机器本地配置（不入库）
+config_local.yaml

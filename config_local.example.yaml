@@ -1,0 +1,18 @@
+# 机器本地配置（不入库）示例：复制为 config_local.yaml 后按需修改。
+# 优先级：config_server.py 默认值 < 本文件 < 环境变量（FIREDASR_ONNX_* / CRISPASR_*）。
+# 相对路径以 config_server.py 所在目录为基准解析。
+
+server:
+  # 语音模型选择：'qwen_asr', 'fun_asr_nano', 'sensevoice', 'paraformer',
+  #              'firedasr_onnx', 'crispasr_qwen3'（后两路由本 fork 增加）
+  # model_type: crispasr_qwen3
+
+paths:
+  # FireRedASR2-AED 纯 ONNX 链路根目录（含 models/ 子目录）
+  # firedasr_onnx_chain_dir: 'S:\asr\model\firedasr-onnx'
+  # 带 CUDA EP 的 onnxruntime 所在解释器
+  # firedasr_onnx_python: 'S:\asr\env\gpu-ort\Scripts\python.exe'
+  # CrispASR 发行目录（含 crispasr.exe）
+  # crispasr_dir: 'S:\asr\model\crispasr-windows-x86_64-cuda-0.8.49'
+  # Qwen3-ASR-1.7B q8_0 GGUF
+  # crispasr_qwen3_model: 'S:\asr\model\crispasr-model\qwen3-asr-1.7b-q8_0.gguf'

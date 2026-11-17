@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import yaml
+
 # 版本信息
 __version__ = '2.6'
 
@@ -11,6 +13,41 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 def _env_path(name: str, default: Path) -> Path:
     value = os.environ.get(name, '').strip()
     return Path(value) if value else default
+
+
+# ---------------------------------------------------------------------------
+# 机器本地配置（config_local.yaml，不入库，见 config_local.example.yaml）
+#
+# 优先级：下面的类内默认值 < config_local.yaml < 环境变量。
+# YAML 里出现且类型为 str 的条目若指向文件/目录，将以本文件所在目录为基准
+# 解析相对路径；未出现的条目沿用类内默认值。
+# ---------------------------------------------------------------------------
+_LOCAL_YAML = Path(BASE_DIR) / 'config_local.yaml'
+_local: dict = {}
+if _LOCAL_YAML.exists():
+    try:
+        with _LOCAL_YAML.open('r', encoding='utf-8') as _f:
+            _loaded = yaml.safe_load(_f)
+        if isinstance(_loaded, dict):
+            _local = _loaded
+    except yaml.YAMLError as _e:
+        # 配置文件坏了不能让整个服务端起不来：报出位置后按无本地配置继续
+        print(f'[config_server] config_local.yaml 解析失败，忽略本地覆盖: {_e}')
+
+
+def _local_str(section: str, key: str) -> 'str | None':
+    """取本地 YAML 里的字符串条目；相对路径以 BASE_DIR 为基准。"""
+    value = (_local.get(section) or {}).get(key)
+    if not isinstance(value, str) or not value.strip():
+        return None
+    p = Path(value)
+    return str(p if p.is_absolute() else Path(BASE_DIR) / p)
+
+
+def _local_scalar(section: str, key: str):
+    """取本地 YAML 里的标量条目（str/int/bool 等原样返回）。"""
+    value = (_local.get(section) or {}).get(key)
+    return value if value is not None else None
 
 
 # 服务端配置
@@ -41,6 +78,17 @@ class ServerConfig:
     # 集成显卡兼容性补丁
     # os.environ["GGML_VK_DISABLE_COOPMAT"] = "1"   # AMD集显无法加载 GGUF 模型时尝试
     # os.environ["GGML_VK_DISABLE_F16"] = "1"       # 集成显卡解码有误，强制熔断时尝试
+
+
+# 应用本地 YAML 的 server 段（仅允许覆盖白名单标量，防止注入任意类属性）
+_SERVER_OVERRIDABLE = {
+    'model_type', 'addr', 'port', 'log_level', 'aligner_idle_timeout',
+    'format_num', 'format_spell', 'enable_tray',
+    'gpu_boost_enabled', 'gpu_boost_cmd', 'gpu_unboost_cmd', 'gpu_unboost_timeout',
+}
+for _key, _value in (_local.get('server') or {}).items():
+    if _key in _SERVER_OVERRIDABLE and _value is not None:
+        setattr(ServerConfig, _key, _value)
 
 
 
@@ -93,24 +141,27 @@ class ModelPaths:
     force_aligner_gguf_llm_decode = force_aligner_gguf_dir / 'qwen3_aligner_llm.q5_k.gguf'
 
     # FireRedASR2-AED 纯 ONNX 链路：代码随仓库，模型用 chain/fetch_assets.py 补全
-    firedasr_onnx_dir = model_dir / 'FireRedASR2-ONNX-AED'
-    firedasr_onnx_model_dir = firedasr_onnx_dir / 'sherpa-onnx-fire-red-asr2-zh_en-int8-2026-02-26'
+    # （机器本地路径可经 config_local.yaml 的 paths 段覆盖）
+    # firedasr_onnx_chain_dir = 链路根目录；firedasr_onnx_dir = 模型根（含各模型子目录），旧名保留兼容
+    firedasr_onnx_chain_dir = Path(_local_str('paths', 'firedasr_onnx_chain_dir') or model_dir / 'FireRedASR2-ONNX-AED')
+    firedasr_onnx_dir = Path(_local_str('paths', 'firedasr_onnx_model_dir') or firedasr_onnx_chain_dir / 'sherpa-onnx-fire-red-asr2-zh_en-int8-2026-02-26')
+    firedasr_onnx_model_dir = firedasr_onnx_dir
     firedasr_onnx_encoder = firedasr_onnx_model_dir / 'encoder.f32.onnx'
     firedasr_onnx_encoder_data = firedasr_onnx_model_dir / 'encoder.f32.onnx.data'
     firedasr_onnx_decoder = firedasr_onnx_model_dir / 'decoder.int8.onnx'
     firedasr_onnx_tokens = firedasr_onnx_model_dir / 'tokens.txt'
-    firedasr_onnx_punc_dir = firedasr_onnx_dir / 'fireredpunc-onnx'
+    firedasr_onnx_punc_dir = Path(_local_str('paths', 'firedasr_onnx_punc_dir') or firedasr_onnx_chain_dir / 'fireredpunc-onnx')
     firedasr_onnx_punc_model = firedasr_onnx_punc_dir / 'punc.f32.onnx'
-    firedasr_onnx_vad_dir = firedasr_onnx_dir / 'fireredvad-onnx'
+    firedasr_onnx_vad_dir = Path(_local_str('paths', 'firedasr_onnx_vad_dir') or firedasr_onnx_chain_dir / 'fireredvad-onnx')
     firedasr_onnx_vad_model = firedasr_onnx_vad_dir / 'model.onnx'
-    firedasr_onnx_chain_dir = Path(BASE_DIR) / 'core' / 'server' / 'engines' / 'firedasr_onnx' / 'chain'
-    firedasr_onnx_python = firedasr_onnx_dir / (
-        'env/Scripts/python.exe' if os.name == 'nt' else 'env/bin/python')
+    firedasr_onnx_chain_code_dir = Path(BASE_DIR) / 'core' / 'server' / 'engines' / 'firedasr_onnx' / 'chain'
+    firedasr_onnx_python = Path(_local_str('paths', 'firedasr_onnx_python') or firedasr_onnx_chain_dir / (
+        'env/Scripts/python.exe' if os.name == 'nt' else 'env/bin/python'))
 
-    # CrispASR：独立发布的 CLI + GGUF
-    crispasr_dir = model_dir / 'CrispASR'
-    crispasr_exe = crispasr_dir / ('crispasr.exe' if os.name == 'nt' else 'crispasr')
-    crispasr_qwen3_model = crispasr_dir / 'qwen3-asr-1.7b-q8_0.gguf'
+    # CrispASR：独立发布的 CLI + GGUF（机器本地路径可经 config_local.yaml 覆盖）
+    crispasr_dir = Path(_local_str('paths', 'crispasr_dir') or model_dir / 'CrispASR')
+    crispasr_exe = Path(_local_str('paths', 'crispasr_exe') or crispasr_dir / ('crispasr.exe' if os.name == 'nt' else 'crispasr'))
+    crispasr_qwen3_model = Path(_local_str('paths', 'crispasr_qwen3_model') or crispasr_dir / 'qwen3-asr-1.7b-q8_0.gguf')
 
 
 
@@ -205,7 +256,8 @@ class FireRedOnnxArgs:
     """FireRedASR2-AED 纯 ONNX 链路参数配置。
 
     推理在独立进程里跑；onnx_provider 出厂 cuda，没有 CUDA EP 会直接报错退出，
-    不会静默退回 CPU。路径均可用环境变量覆盖，见 docs/引擎扩展-FireRed与CrispASR.md。
+    不会静默退回 CPU。路径优先级：环境变量 < config_local.yaml < 类内默认，
+    见 docs/引擎扩展-FireRed与CrispASR.md。
     """
     chain_dir = _env_path('FIREDASR_ONNX_CHAIN_DIR', ModelPaths.firedasr_onnx_chain_dir).resolve().as_posix()
     model_dir = _env_path('FIREDASR_ONNX_MODEL_DIR', ModelPaths.firedasr_onnx_model_dir).resolve().as_posix()
@@ -239,4 +291,3 @@ class CrispAsrQwen3Args:
     sample_rate = 16000
     warmup = True               # 起服务后先用 0.5 s 噪声吃掉 CUDA 首推理开销
     start_timeout = 240         # 等模型加载 + 就绪的上限
-
