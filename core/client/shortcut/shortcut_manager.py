@@ -7,6 +7,7 @@
 2. 防止不同按键互相干扰
 3. restore 功能的防自捕获逻辑
 4. hold_mode 和 click_mode 支持
+5. Windows (win32_event_filter) 和 Linux (on_press/on_release) 双平台
 """
 from __future__ import annotations
 import time
@@ -17,7 +18,7 @@ from pynput import keyboard, mouse
 
 from . import logger
 from core.client.shortcut.key_mapper import *
-from core.client.shortcut.key_mapper import KeyMapper
+from core.client.shortcut.key_mapper import KeyMapper, IS_WINDOWS
 from core.client.shortcut.emulator import ShortcutEmulator
 from core.client.shortcut.event_handler import ShortcutEventHandler
 from core.client.shortcut.task import ShortcutTask
@@ -26,6 +27,46 @@ if TYPE_CHECKING:
     from core.client.shortcut.shortcut_config import Shortcut
     from core.client.state import ClientState
     from core.client.app import CapsWriterClient
+
+
+def _pynput_key_to_name(key) -> Optional[str]:
+    """将 pynput Key/KeyCode 转换为字符串名称 (Linux 用)"""
+    if isinstance(key, keyboard.Key):
+        name = key.name
+        # 规范化常见名称
+        if name == 'caps_lock':
+            return 'caps_lock'
+        if name == 'num_lock':
+            return 'num_lock'
+        if name == 'scroll_lock':
+            return 'scroll_lock'
+        if name == 'ctrl_l':
+            return 'ctrl_l'
+        if name == 'ctrl_r':
+            return 'ctrl_r'
+        if name == 'shift_l':
+            return 'shift'
+        if name == 'shift_r':
+            return 'shift_r'
+        if name == 'alt_l':
+            return 'alt_l'
+        if name == 'alt_gr':
+            return 'alt_gr'
+        return name
+    elif isinstance(key, keyboard.KeyCode):
+        # 普通字符键
+        if key.char:
+            return key.char
+        return f'vk_{key.vk}'
+    return None
+
+
+def _pynput_mouse_to_name(button) -> Optional[str]:
+    """将 pynput mouse Button 转换为字符串名称。仅处理侧键，其余返回 None。"""
+    name = getattr(button, 'name', '')
+    if name in ('x1', 'x2'):
+        return name
+    return None
 
 
 
@@ -89,7 +130,40 @@ class ShortcutManager:
             task.threshold = shortcut.get_threshold(Config.threshold)
             self.tasks[shortcut.key] = task
 
-    # ========== 监听器创建 ==========
+    # ========== Linux: on_press / on_release ==========
+
+    def _on_press_linux(self, key):
+        key_name = _pynput_key_to_name(key)
+        if key_name is None:
+            return
+        if key_name not in self.tasks:
+            return
+        task = self.tasks[key_name]
+        self._event_handler.handle_keydown(key_name, task)
+
+    def _on_release_linux(self, key):
+        key_name = _pynput_key_to_name(key)
+        if key_name is None:
+            return
+        if key_name not in self.tasks:
+            return
+        task = self.tasks[key_name]
+        self._event_handler.handle_keyup(key_name, task)
+
+    def _on_mouse_click_linux(self, x, y, button, pressed):
+        if pressed:
+            # mouse press
+            key_name = _pynput_mouse_to_name(button)
+            if key_name and key_name in self.tasks:
+                self._event_handler.handle_keydown(key_name, self.tasks[key_name])
+        else:
+            # mouse release
+            key_name = _pynput_mouse_to_name(button)
+            if key_name and key_name in self.tasks:
+                task = self.tasks[key_name]
+                self._handle_mouse_keyup(key_name, task)
+
+    # ========== Windows: win32_event_filter ==========
 
     def create_keyboard_filter(self):
         """创建键盘事件过滤器"""
@@ -257,22 +331,36 @@ class ShortcutManager:
         if has_keyboard:
             if self.keyboard_listener and self.keyboard_listener.is_alive():
                 logger.debug("键盘监听器已在运行，跳过启动")
-            else:
+            elif IS_WINDOWS:
                 self.keyboard_listener = keyboard.Listener(
                     win32_event_filter=self.create_keyboard_filter()
                 )
                 self.keyboard_listener.start()
-                logger.info("键盘监听器已启动")
+                logger.info("键盘监听器已启动 (Windows win32_event_filter)")
+            else:
+                # Linux/macOS：pynput 无 win32_event_filter，走 on_press/on_release 回调
+                self.keyboard_listener = keyboard.Listener(
+                    on_press=self._on_press_linux,
+                    on_release=self._on_release_linux,
+                )
+                self.keyboard_listener.start()
+                logger.info("键盘监听器已启动 (on_press/on_release 回调)")
 
         if has_mouse:
             if self.mouse_listener and self.mouse_listener.is_alive():
                 logger.debug("鼠标监听器已在运行，跳过启动")
-            else:
+            elif IS_WINDOWS:
                 self.mouse_listener = mouse.Listener(
                     win32_event_filter=self.create_mouse_filter()
                 )
                 self.mouse_listener.start()
-                logger.info("鼠标监听器已启动")
+                logger.info("鼠标监听器已启动 (Windows win32_event_filter)")
+            else:
+                self.mouse_listener = mouse.Listener(
+                    on_click=self._on_mouse_click_linux,
+                )
+                self.mouse_listener.start()
+                logger.info("鼠标监听器已启动 (on_click 回调)")
 
         # 打印所有启用的快捷键
         for shortcut in self.shortcuts:

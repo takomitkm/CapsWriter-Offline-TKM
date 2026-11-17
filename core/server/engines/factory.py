@@ -3,9 +3,9 @@ from typing import Any, Dict, Type, Optional
 from .base import BaseASREngine, BasePuncEngine, BaseAlignEngine
 from config_server import (
     ServerConfig as Config,
-    ParaformerArgs, SenseVoiceArgs, 
+    ParaformerArgs, SenseVoiceArgs,
     FunASRNanoGGUFArgs, Qwen3ASRGGUFArgs,
-    FireRedOnnxArgs, CrispAsrQwen3Args,
+    FireRedOnnxArgs, CrispAsrQwen3Args, MimoApiArgs,
     ModelPaths, ForceAlignerGGUFArgs
 )
 
@@ -50,13 +50,19 @@ class EngineFactory:
         from .crispasr_qwen3.asr_engine import CrispAsrQwen3Engine, CrispAsrQwen3Config
         return CrispAsrQwen3Engine, CrispAsrQwen3Config, CrispAsrQwen3Args
 
+    @staticmethod
+    def _load_mimo_api():
+        from .mimo_api.asr_engine import MimoApiEngine, MimoApiConfig
+        return MimoApiEngine, MimoApiConfig, MimoApiArgs
+
     _ASR_LOADERS = {
         'sensevoice': _load_sensevoice,
         'paraformer': _load_paraformer,
         'fun_asr_nano': _load_fun_asr_nano,
         'qwen_asr': _load_qwen_asr,
         'firedasr_onnx': _load_firedasr_onnx,
-        'crispasr_qwen3': _load_crispasr_qwen3
+        'crispasr_qwen3': _load_crispasr_qwen3,
+        'mimo_api': _load_mimo_api
     }
 
     @staticmethod

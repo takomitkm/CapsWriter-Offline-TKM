@@ -73,6 +73,22 @@ def check_model() -> None:
             ModelPaths.crispasr_exe,
             ModelPaths.crispasr_qwen3_model,
         ]
+    elif model_type == 'mimo_api':
+        # 云端引擎没有本地模型文件，只检查密钥
+        from config_server import MimoApiArgs
+        if not MimoApiArgs.api_key:
+            console.print('''
+    [bold red]MiMo 云端引擎缺少 API 密钥[/bold red]
+
+    请在以下任一位置配置密钥后重启服务端：
+      1. 环境变量 MIMO_API_KEY
+      2. config_local.yaml：
+         mimo:
+           api_key: '你的密钥'
+
+            ''', style='bright_red')
+        input('按回车退出')
+        sys.exit(1)
     else:
         error_msg = f"不支持的模型类型: {Config.model_type}"
         logger.error(error_msg)
@@ -86,6 +102,7 @@ def check_model() -> None:
     - 'qwen_asr'
     - 'firedasr_onnx'
     - 'crispasr_qwen3'
+    - 'mimo_api'
 
         ''', style='bright_red')
         input('按回车退出')

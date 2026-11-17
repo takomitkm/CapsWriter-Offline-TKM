@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 import yaml
-
 # 版本信息
 __version__ = '2.6'
 
@@ -56,7 +55,7 @@ class ServerConfig:
     port = '6016'
 
     # 语音模型选择：'qwen_asr', 'fun_asr_nano', 'sensevoice', 'paraformer',
-    #              'firedasr_onnx', 'crispasr_qwen3'（后两路由本 fork 增加）
+    #              'firedasr_onnx', 'crispasr_qwen3', 'mimo_api'（后三路由本 fork 增加）
     model_type = 'qwen_asr'
 
     format_num = True       # 输出时是否将中文数字转为阿拉伯数字
@@ -274,6 +273,21 @@ class FireRedOnnxArgs:
     use_vad = True              # FireRedVAD 先切语音、去掉长静音
     piece_max = 10.0            # VAD 段按停顿聚到 <=10 s 再送 AED
     start_timeout = 240         # 等模型就绪的上限
+
+
+class MimoApiArgs:
+    """MiMo 云端 ASR 参数配置。
+
+    密钥优先级：环境变量 MIMO_API_KEY < config_local.yaml 的 mimo.api_key。
+    没有密钥时 check_model 会给出明确报错，不会静默跑空。
+    """
+    api_key = os.environ.get('MIMO_API_KEY', '') or (_local.get('mimo') or {}).get('api_key') or ''
+    base_url = os.environ.get('MIMO_BASE_URL', '') or 'https://token-plan-cn.xiaomimimo.com/v1'
+    model = 'mimo-v2.5-asr'     # 语音识别模型
+    language = 'auto'           # auto / zh / en
+    sample_rate = 16000
+    timeout = 60                # 单次请求超时（秒）
+    max_upload_bytes = 10 * 1024 * 1024   # 官方限制：base64 后不超过 10MB
 
 
 class CrispAsrQwen3Args:
