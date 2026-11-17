@@ -1,4 +1,4 @@
-# coding: utf-8
+﻿# coding: utf-8
 """
 识别子进程工作包 (Worker Package)
 
@@ -26,7 +26,7 @@ def start_worker(queue_in: Queue, queue_out: Queue, sockets_id: ListProxy, stdin
             worker.run()
         except Exception as e:
             # 主进程在等 True/错误状态；把真实异常打包回传，避免只看到裸退出码
-            from .diagnostics import write_worker_crash_report
+            from .crash_diagnostics import write_worker_crash_report
             report = write_worker_crash_report(e, '')
             queue_out.put({
                 'kind': 'worker_startup_error',
