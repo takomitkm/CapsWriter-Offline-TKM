@@ -1,9 +1,14 @@
 # coding: utf-8
 """
-按键映射相关
+按键映射 —— 公共接口与平台分发
 
-处理按键名称和虚拟键码之间的转换，以及相关常量定义。
-Windows 使用 win32_event_filter + VK 码；Linux 使用 on_press/on_release 回调。
+平台实现拆分（同目录）：
+- key_mapper_win.py    Windows：VK 码 + pynput KeyTranslator + win32 消息常量
+- key_mapper_linux.py  Linux：pynput Key/KeyCode 名称规范化（on_press/on_release 用）
+- key_mapper_macos.py  macOS：键位规范化占位（孵化中，见 feat/macos-adapter 分支）
+
+本文件只保留：平台检测、跨平台常量、公共 KeyMapper 门面。
+对外导入方式不变（from ... import KeyMapper, IS_WINDOWS, ...），调用方无需改动。
 """
 
 import sys
@@ -12,65 +17,16 @@ from pynput import keyboard
 
 from . import logger
 
+# ------------------------------------------------------------------
 # 平台检测
+# ------------------------------------------------------------------
 IS_WINDOWS = sys.platform == 'win32'
 IS_LINUX = sys.platform.startswith('linux')
-
-if IS_WINDOWS:
-    # KeyTranslator 是 pynput 的 Windows 专有组件（VK -> 字符），Linux 上不存在
-    from pynput._util.win32 import KeyTranslator
-    # 创建键盘翻译器实例（用于 VK 到字符的转换）
-    _key_translator = KeyTranslator()
-else:
-    _key_translator = None
-
-# 特殊键 VK 映射（从 pynput 复制）
-_SPECIAL_KEYS = {
-    key.value.vk: key
-    for key in keyboard.Key
-}
-
-# 小键盘按键映射（VK -> 名称）
-NUMPAD_KEYS = {
-    0x60: 'numpad0',  0x61: 'numpad1',  0x62: 'numpad2',  0x63: 'numpad3',
-    0x64: 'numpad4',  0x65: 'numpad5',  0x66: 'numpad6',  0x67: 'numpad7',
-    0x68: 'numpad8',  0x69: 'numpad9',
-    0x6A: 'numpad_multiply',  # *
-    0x6B: 'numpad_add',       # +
-    0x6C: 'numpad_separator', # （通常未使用）
-    0x6D: 'numpad_subtract',  # -
-    0x6E: 'numpad_decimal',   # 小数点
-    0x6F: 'numpad_divide',    # /
-}
-
-# Windows 键盘消息常量
-WM_KEYDOWN = 0x0100
-WM_KEYUP = 0x0101
-WM_SYSKEYDOWN = 0x0104
-WM_SYSKEYUP = 0x0105
-
-# Windows 鼠标消息常量
-WM_XBUTTONDOWN = 0x020B
-WM_XBUTTONUP = 0x020C
-XBUTTON1 = 0x0001
-XBUTTON2 = 0x0002
-
-# 按键消息集合
-KEYBOARD_MESSAGES = (WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP)
-KEY_UP_MESSAGES = (WM_KEYUP, WM_SYSKEYUP)
-KEY_DOWN_MESSAGES = (WM_KEYDOWN, WM_SYSKEYDOWN)
-MOUSE_MESSAGES = (WM_XBUTTONDOWN, WM_XBUTTONUP)
-
-# 可恢复的切换键（需要录音完成后恢复状态的锁键）
-RESTORABLE_KEYS = {
-    'caps_lock',    # 大写锁定
-    'num_lock',     # 数字键盘锁定
-    'scroll_lock',  # 滚动锁定
-}
+IS_MACOS = sys.platform == 'darwin'
 
 
 class KeyMapper:
-    """按键映射器"""
+    """按键映射器（平台无关门面：特殊键枚举 + 名称/对象互转）"""
 
     # pynput 特殊键对象缓存
     _SPECIAL_KEY_OBJECTS = None
@@ -86,37 +42,6 @@ class KeyMapper:
                 for key in keyboard.Key
             }
         return cls._SPECIAL_KEY_OBJECTS
-
-    @staticmethod
-    def vk_to_name(vk: int) -> str:
-        """
-        将虚拟键码转换为按键名称
-
-        Args:
-            vk: 虚拟键码
-
-        Returns:
-            str: 按键名称（与 Shortcut.key 格式一致）
-        """
-        # 首先检查是否是特殊键（pynput Key 枚举）
-        if vk in _SPECIAL_KEYS:
-            return _SPECIAL_KEYS[vk].name
-
-        # 检查是否是小键盘按键
-        if vk in NUMPAD_KEYS:
-            return NUMPAD_KEYS[vk]
-
-        # 使用 pynput 的 KeyTranslator 获取字符（字母、数字、符号键）
-        if _key_translator is not None:
-            try:
-                params = _key_translator(vk, is_press=True)
-                if 'char' in params and params['char'] is not None:
-                    return params['char']
-            except Exception:
-                pass
-
-        # 未知键码，返回 vk_ 格式
-        return f'vk_{vk}'
 
     @staticmethod
     def name_to_key(key_name: str):
@@ -140,3 +65,25 @@ class KeyMapper:
 
         logger.warning(f"未知按键名称: {key_name}")
         return None
+
+
+# ------------------------------------------------------------------
+# Windows 专有实现（VK 码、win32 消息常量、KeyTranslator）
+# ------------------------------------------------------------------
+if IS_WINDOWS:
+    from .key_mapper_win import (          # noqa: F401
+        vk_to_name,
+        NUMPAD_KEYS,
+        WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+        WM_XBUTTONDOWN, WM_XBUTTONUP,
+        XBUTTON1, XBUTTON2,
+        KEYBOARD_MESSAGES, KEY_UP_MESSAGES, KEY_DOWN_MESSAGES, MOUSE_MESSAGES,
+    )
+    # 平台版补齐 VK 查询能力（公共门面只管名称/对象互转）
+    KeyMapper.vk_to_name = staticmethod(vk_to_name)
+
+# ------------------------------------------------------------------
+# Linux / macOS：走 on_press/on_release 回调路径，没有 VK 查询，
+# 名称规范化在 shortcut_manager 的 _pynput_key_to_name 中完成。
+# macOS 键位表占位见 key_mapper_macos.py（feat/macos-adapter 分支孵化）。
+# ------------------------------------------------------------------

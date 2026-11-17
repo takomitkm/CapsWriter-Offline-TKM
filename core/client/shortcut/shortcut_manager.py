@@ -19,6 +19,7 @@ from pynput import keyboard, mouse
 from . import logger
 from core.client.shortcut.key_mapper import *
 from core.client.shortcut.key_mapper import KeyMapper, IS_WINDOWS
+from core.client.shortcut.key_mapper_linux import pynput_key_to_name, pynput_mouse_to_name
 from core.client.shortcut.emulator import ShortcutEmulator
 from core.client.shortcut.event_handler import ShortcutEventHandler
 from core.client.shortcut.task import ShortcutTask
@@ -27,46 +28,6 @@ if TYPE_CHECKING:
     from core.client.shortcut.shortcut_config import Shortcut
     from core.client.state import ClientState
     from core.client.app import CapsWriterClient
-
-
-def _pynput_key_to_name(key) -> Optional[str]:
-    """将 pynput Key/KeyCode 转换为字符串名称 (Linux 用)"""
-    if isinstance(key, keyboard.Key):
-        name = key.name
-        # 规范化常见名称
-        if name == 'caps_lock':
-            return 'caps_lock'
-        if name == 'num_lock':
-            return 'num_lock'
-        if name == 'scroll_lock':
-            return 'scroll_lock'
-        if name == 'ctrl_l':
-            return 'ctrl_l'
-        if name == 'ctrl_r':
-            return 'ctrl_r'
-        if name == 'shift_l':
-            return 'shift'
-        if name == 'shift_r':
-            return 'shift_r'
-        if name == 'alt_l':
-            return 'alt_l'
-        if name == 'alt_gr':
-            return 'alt_gr'
-        return name
-    elif isinstance(key, keyboard.KeyCode):
-        # 普通字符键
-        if key.char:
-            return key.char
-        return f'vk_{key.vk}'
-    return None
-
-
-def _pynput_mouse_to_name(button) -> Optional[str]:
-    """将 pynput mouse Button 转换为字符串名称。仅处理侧键，其余返回 None。"""
-    name = getattr(button, 'name', '')
-    if name in ('x1', 'x2'):
-        return name
-    return None
 
 
 
@@ -133,7 +94,7 @@ class ShortcutManager:
     # ========== Linux: on_press / on_release ==========
 
     def _on_press_linux(self, key):
-        key_name = _pynput_key_to_name(key)
+        key_name = pynput_key_to_name(key)
         if key_name is None:
             return
         if key_name not in self.tasks:
@@ -142,7 +103,7 @@ class ShortcutManager:
         self._event_handler.handle_keydown(key_name, task)
 
     def _on_release_linux(self, key):
-        key_name = _pynput_key_to_name(key)
+        key_name = pynput_key_to_name(key)
         if key_name is None:
             return
         if key_name not in self.tasks:
@@ -153,12 +114,12 @@ class ShortcutManager:
     def _on_mouse_click_linux(self, x, y, button, pressed):
         if pressed:
             # mouse press
-            key_name = _pynput_mouse_to_name(button)
+            key_name = pynput_mouse_to_name(button)
             if key_name and key_name in self.tasks:
                 self._event_handler.handle_keydown(key_name, self.tasks[key_name])
         else:
             # mouse release
-            key_name = _pynput_mouse_to_name(button)
+            key_name = pynput_mouse_to_name(button)
             if key_name and key_name in self.tasks:
                 task = self.tasks[key_name]
                 self._handle_mouse_keyup(key_name, task)
