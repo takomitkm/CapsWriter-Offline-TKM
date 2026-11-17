@@ -210,7 +210,8 @@ def bind_llama_lib():
         return
 
     # 获取库文件所在目录 (模块目录下的 bin)
-    lib_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin")
+    from .llama_runtime import llama_runtime_dir
+    lib_dir = os.fspath(llama_runtime_dir())
 
     # DLL 命名处理
     if sys.platform == "win32":
