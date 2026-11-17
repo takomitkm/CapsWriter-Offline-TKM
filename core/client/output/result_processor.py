@@ -54,8 +54,7 @@ def _show_asr_error_toast(error: str) -> None:
     try:
         from core.ui.toast import toast
 
-        toast(text=f"识别失败: {error[:120]}", font_size=16, bg='#8B0000',
-              fg='white', duration=5000, initial_width=0.6)
+        toast(f"识别失败: {error[:120]}")
     except Exception as e:
         logger.error(f"识别失败 Toast 显示失败: {e}")
 
@@ -82,6 +81,7 @@ class ResultProcessor:
         self.app = app
         self._exit_event = asyncio.Event()
         self._loop = asyncio.get_running_loop()  # 保存事件循环引用
+        self._error_notified: set[str] = set()  # 长语音逐段失败时只弹一次
 
     @property
     def state(self) -> ClientState:
@@ -194,15 +194,20 @@ class ResultProcessor:
         if message is None:
             return
 
-        # 服务端识别失败：必须让她看得见，否则表现成“长按没反应”
+        # 服务端识别失败：必须让用户看得见，否则表现成“长按没反应”
         if message.error:
             logger.warning(f"服务端识别失败: {message.error}")
-            console.print(f'    [bold red]识别失败：{message.error}[/bold red]')
-            _show_asr_error_toast(message.error)
+            if message.task_id not in self._error_notified:
+                self._error_notified.add(message.task_id)
+                console.print(f'    识别失败：{message.error}', style='bold red', markup=False)
+                _show_asr_error_toast(message.error)
             if message.is_final:
+                self._error_notified.discard(message.task_id)
                 self.state.pop_audio_file(message.task_id)
             return
 
+        if message.is_final:
+            self._error_notified.discard(message.task_id)
 
         # 使用 text 字段（简单拼接结果，用于语音输入）
         text = message.text
@@ -332,6 +337,7 @@ class ResultProcessor:
     
     def _cleanup(self) -> None:
         """清理资源"""
+        self._error_notified.clear()
         if self.state.websocket is not None:
             try:
                 if self.state.websocket.closed:
