@@ -23,6 +23,7 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          python-version: 3.14
 
       - name: 安装依赖（含 pyinstaller）
         run: uv sync --group build
