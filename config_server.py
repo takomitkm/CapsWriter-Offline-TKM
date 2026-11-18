@@ -305,3 +305,26 @@ class CrispAsrQwen3Args:
     sample_rate = 16000
     warmup = True               # 起服务后先用 0.5 s 噪声吃掉 CUDA 首推理开销
     start_timeout = 240         # 等模型加载 + 就绪的上限
+
+
+# ------------------------------------------------------------------
+# 引擎参数 YAML 覆盖（config_local.yaml 的 crispasr / firered 段）
+#
+# 与 server 段同机制：白名单标量覆盖，防止注入任意类属性。
+# 无 GPU 的机器（如校机 Hyper-V 虚拟显卡）需要把 gpu_backend /
+# onnx_provider 从 cuda 改到 cpu，无需改 config_server.py。
+# ------------------------------------------------------------------
+_CRISPASR_OVERRIDABLE = {
+    'gpu_backend', 'backend', 'language', 'sample_rate', 'warmup', 'start_timeout',
+}
+for _key, _value in (_local.get('crispasr') or {}).items():
+    if _key in _CRISPASR_OVERRIDABLE and _value is not None:
+        setattr(CrispAsrQwen3Args, _key, _value)
+
+_FIRERED_OVERRIDABLE = {
+    'onnx_provider', 'graph', 'mode', 'threads', 'punc_threads',
+    'use_vad', 'piece_max', 'start_timeout', 'sample_rate',
+}
+for _key, _value in (_local.get('firered') or {}).items():
+    if _key in _FIRERED_OVERRIDABLE and _value is not None:
+        setattr(FireRedOnnxArgs, _key, _value)

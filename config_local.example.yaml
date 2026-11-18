@@ -4,7 +4,7 @@
 
 server:
   # 语音模型选择：'qwen_asr', 'fun_asr_nano', 'sensevoice', 'paraformer',
-  #              'firedasr_onnx', 'crispasr_qwen3'（后两路由本 fork 增加）
+  #              'firedasr_onnx', 'crispasr_qwen3', 'mimo_api'（后三路由本 fork 增加）
   # model_type: crispasr_qwen3
 
 paths:
@@ -16,3 +16,11 @@ paths:
   # crispasr_dir: 'S:\asr\model\crispasr-windows-x86_64-cuda-0.8.49'
   # Qwen3-ASR-1.7B q8_0 GGUF
   # crispasr_qwen3_model: 'S:\asr\model\crispasr-model\qwen3-asr-1.7b-q8_0.gguf'
+
+crispasr:
+  # CrispASR 引擎参数覆盖（无 NVIDIA GPU 的机器改 gpu_backend: cpu）
+  # gpu_backend: cuda
+
+firered:
+  # FireRed ONNX 引擎参数覆盖（无 CUDA EP 的机器改 onnx_provider: cpu）
+  # onnx_provider: cuda
