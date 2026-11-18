@@ -26,7 +26,7 @@ jobs:
           python-version: 3.14
 
       - name: 安装依赖（含 pyinstaller）
-        run: uv sync --group build
+        run: uv sync --python 3.14 --group build
 
       - name: PyInstaller 打包
         run: uv run pyinstaller build.spec --noconfirm --clean --distpath dist --workpath build
