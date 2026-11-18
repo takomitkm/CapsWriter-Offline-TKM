@@ -1,4 +1,5 @@
 import os
+import sys
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -8,6 +9,9 @@ __version__ = '2.6'
 # 项目根目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# 平台检测（快捷键默认值随平台变化）
+IS_MACOS = sys.platform == 'darwin'
+
 
 # 客户端配置
 class ClientConfig:
@@ -15,22 +19,36 @@ class ClientConfig:
     port = '6016'               # Server 端口
 
     # 快捷键配置列表
-    shortcuts = [
-        {
-            'key': 'caps_lock',     # 监听大写锁定键
-            'type': 'keyboard',     # 是键盘快捷键
-            'suppress': True,      # 阻塞按键（短按会补发）
-            'hold_mode': True,      # 长按模式
-            'enabled': True         # 启用此快捷键
-        },
-        {
-            'key': 'x2',
-            'type': 'mouse',
-            'suppress': True,
-            'hold_mode': True,
-            'enabled': True
-        },
-    ]
+    # macOS 默认：右 Command（cmd_r）长按说话——caps_lock 在 mac 上没有
+    # 按键阻塞能力（suppress 无效，字母 C 会打进文档），且 cmd_r 不参与打字；
+    # 鼠标侧键在部分 Mac 鼠标上不存在，默认禁用。
+    if IS_MACOS:
+        shortcuts = [
+            {
+                'key': 'cmd_r',         # 右 Command（macOS 默认）
+                'type': 'keyboard',
+                'suppress': False,      # macOS 无按键阻塞能力
+                'hold_mode': True,
+                'enabled': True
+            },
+        ]
+    else:
+        shortcuts = [
+            {
+                'key': 'caps_lock',     # 监听大写锁定键
+                'type': 'keyboard',     # 是键盘快捷键
+                'suppress': True,      # 阻塞按键（短按会补发）
+                'hold_mode': True,      # 长按模式
+                'enabled': True         # 启用此快捷键
+            },
+            {
+                'key': 'x2',
+                'type': 'mouse',
+                'suppress': True,
+                'hold_mode': True,
+                'enabled': True
+            },
+        ]
 
     threshold    = 0.3          # 快捷键触发阈值（秒）
 

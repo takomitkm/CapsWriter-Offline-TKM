@@ -18,8 +18,13 @@ from pynput import keyboard, mouse
 
 from . import logger
 from core.client.shortcut.key_mapper import *
-from core.client.shortcut.key_mapper import KeyMapper, IS_WINDOWS
+from core.client.shortcut.key_mapper import KeyMapper, IS_WINDOWS, IS_MACOS
 from core.client.shortcut.key_mapper_linux import pynput_key_to_name, pynput_mouse_to_name
+from core.client.shortcut.key_mapper_macos import (
+    pynput_key_to_name as macos_pynput_key_to_name,
+    pynput_mouse_to_name as macos_pynput_mouse_to_name,
+    check_permissions as macos_check_permissions,
+)
 from core.client.shortcut.emulator import ShortcutEmulator
 from core.client.shortcut.event_handler import ShortcutEventHandler
 from core.client.shortcut.task import ShortcutTask
@@ -120,6 +125,39 @@ class ShortcutManager:
         else:
             # mouse release
             key_name = pynput_mouse_to_name(button)
+            if key_name and key_name in self.tasks:
+                task = self.tasks[key_name]
+                self._handle_mouse_keyup(key_name, task)
+
+    # ========== macOS: on_press / on_release（无 suppress 能力） ==========
+
+    def _on_press_macos(self, key):
+        key_name = macos_pynput_key_to_name(key)
+        if key_name is None:
+            return
+        if key_name not in self.tasks:
+            return
+        task = self.tasks[key_name]
+        # macOS 上 pynput 无按键阻塞能力：suppress 在此平台被忽略，
+        # 快捷键应配置为不与输入冲突的键（如右 Command）
+        self._event_handler.handle_keydown(key_name, task)
+
+    def _on_release_macos(self, key):
+        key_name = macos_pynput_key_to_name(key)
+        if key_name is None:
+            return
+        if key_name not in self.tasks:
+            return
+        task = self.tasks[key_name]
+        self._event_handler.handle_keyup(key_name, task)
+
+    def _on_mouse_click_macos(self, x, y, button, pressed):
+        if pressed:
+            key_name = macos_pynput_mouse_to_name(button)
+            if key_name and key_name in self.tasks:
+                self._event_handler.handle_keydown(key_name, self.tasks[key_name])
+        else:
+            key_name = macos_pynput_mouse_to_name(button)
             if key_name and key_name in self.tasks:
                 task = self.tasks[key_name]
                 self._handle_mouse_keyup(key_name, task)
@@ -232,7 +270,12 @@ class ShortcutManager:
 
         注意：标志清除只在按键释放事件中处理（_check_restoring），
         避免在线程中提前清除导致主线程收到重复消息。
+        macOS：无按键阻塞能力，按键事件已自然传递给系统，无需补发。
         """
+        if IS_MACOS:
+            logger.debug(f"[{key}] macOS 无需恢复按键（无阻塞能力，事件已自然生效）")
+            return
+
         from pynput import keyboard
 
         self._restoring_keys.add(key)
@@ -289,6 +332,18 @@ class ShortcutManager:
         has_keyboard = any(s.type == 'keyboard' for s in self.shortcuts if s.enabled)
         has_mouse = any(s.type == 'mouse' for s in self.shortcuts if s.enabled)
 
+        if IS_MACOS:
+            # macOS：pynput 没有辅助功能权限时会静默失聪（收不到任何事件），
+            # 启动前显式检查并提示，避免用户对着无反应的快捷键排查
+            macos_check_permissions()
+            no_suppress = [s.key for s in self.shortcuts if s.enabled and s.suppress]
+            if no_suppress:
+                logger.warning(
+                    f"macOS 不支持按键阻塞 (suppress)，以下快捷键的阻塞设置将被忽略: "
+                    f"{', '.join(no_suppress)}。"
+                    f"建议改用不与输入冲突的按键（如右 Command）。"
+                )
+
         if has_keyboard:
             if self.keyboard_listener and self.keyboard_listener.is_alive():
                 logger.debug("键盘监听器已在运行，跳过启动")
@@ -298,8 +353,15 @@ class ShortcutManager:
                 )
                 self.keyboard_listener.start()
                 logger.info("键盘监听器已启动 (Windows win32_event_filter)")
+            elif IS_MACOS:
+                self.keyboard_listener = keyboard.Listener(
+                    on_press=self._on_press_macos,
+                    on_release=self._on_release_macos,
+                )
+                self.keyboard_listener.start()
+                logger.info("键盘监听器已启动 (macOS on_press/on_release 回调)")
             else:
-                # Linux/macOS：pynput 无 win32_event_filter，走 on_press/on_release 回调
+                # Linux：pynput 无 win32_event_filter，走 on_press/on_release 回调
                 self.keyboard_listener = keyboard.Listener(
                     on_press=self._on_press_linux,
                     on_release=self._on_release_linux,
@@ -316,6 +378,12 @@ class ShortcutManager:
                 )
                 self.mouse_listener.start()
                 logger.info("鼠标监听器已启动 (Windows win32_event_filter)")
+            elif IS_MACOS:
+                self.mouse_listener = mouse.Listener(
+                    on_click=self._on_mouse_click_macos,
+                )
+                self.mouse_listener.start()
+                logger.info("鼠标监听器已启动 (macOS on_click 回调)")
             else:
                 self.mouse_listener = mouse.Listener(
                     on_click=self._on_mouse_click_linux,
@@ -340,7 +408,7 @@ class ShortcutManager:
                 pass
             finally:
                 self.keyboard_listener = None
-                
+
         if self.mouse_listener:
             try:
                 self.mouse_listener.stop()

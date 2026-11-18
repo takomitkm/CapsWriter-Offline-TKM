@@ -41,8 +41,12 @@ def get_selected_text(role_config, state) -> str:
         # 保存当前剪贴板内容
         original_clipboard = safe_paste()
 
-        # 模拟 Ctrl+C 复制选中的文字
-        keyboard.press_and_release('ctrl+c')
+        # 模拟复制快捷键：macOS 用 Command+C，其余平台 Ctrl+C
+        import platform as _platform
+        if _platform.system() == 'Darwin':
+            keyboard.press_and_release('cmd+c')
+        else:
+            keyboard.press_and_release('ctrl+c')
 
         # 等待复制操作完成
         time.sleep(0.1)
