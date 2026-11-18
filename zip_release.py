@@ -10,9 +10,18 @@
 """
 
 import os
+import sys
 import subprocess
 from pathlib import Path
 from datetime import datetime
+
+# Windows 上 Python 默认 stdout 是 cp936(ACP=936)，脚本含中文输出会炸
+# （UnicodeEncodeError: 'charmap'）。强制 UTF-8，与 AGENTS.md 约定一致。
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except (AttributeError, ValueError):
+    pass
 
 
 def find_7zip():
