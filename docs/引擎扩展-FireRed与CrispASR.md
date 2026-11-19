@@ -259,7 +259,8 @@ RTF 越难看——RTF 这个指标本身对短句不友好，看绝对耗时更
 ## 5. 出处与本 fork 的改动边界
 
 - 上游项目：[HaujetZhao/CapsWriter-Offline](https://github.com/HaujetZhao/CapsWriter-Offline)
-  （MIT）。本仓库是它的 fork，上游代码与许可完整保留，两路新引擎只做增量、不改上游逻辑，
+  （MIT）。本仓库是它的 fork，整体以 AGPL-3.0 分发（根目录 `LICENSE`），上游的 MIT 版权与
+  许可声明原样保留（根目录 `THIRD-PARTY-NOTICES.md`）；两路新引擎只做增量、不改上游逻辑，
   也没有提 PR。跟上游用 merge，不用 squash，避免把上游提交改写。
 - `firedasr_onnx` 的链代码：
   [takomitkm/High-Accuracy-Offline-ASR](https://github.com/takomitkm/High-Accuracy-Offline-ASR)

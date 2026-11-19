@@ -1,7 +1,8 @@
 # 第三方声明
 
 本仓库是 [HaujetZhao/CapsWriter-Offline](https://github.com/HaujetZhao/CapsWriter-Offline)
-的 fork，上游代码按根目录 `LICENSE`（MIT）使用。本文件只列本 fork 新增的第三方件。
+的 fork，整体以根目录 `LICENSE`（AGPL-3.0）分发，上游的 MIT 版权与许可声明原样保留在
+根目录 `THIRD-PARTY-NOTICES.md`。本文件只列本 fork 新增的第三方件。
 
 本仓库不包含任何模型权重、GGUF、可执行文件或 CUDA 运行库；以下资源均由使用者在本地下载。
 

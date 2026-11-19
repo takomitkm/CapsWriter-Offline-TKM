@@ -1,8 +1,9 @@
 # CapsWriter-Offline
 
 > **本仓库是 [HaujetZhao/CapsWriter-Offline](https://github.com/HaujetZhao/CapsWriter-Offline) 的 fork。**
-> 上游代码与 MIT 许可原样保留，这里只做增量：新增 `firedasr_onnx`、`crispasr_qwen3` 两路引擎
-> 和它们的文档、许可声明。没有向上游提 PR，跟上游走 merge。
+> 本仓库整体以 AGPL-3.0 许可（全文见 [LICENSE](LICENSE)），上游的 MIT 版权与许可声明原样保留
+> （见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)）。这里只做增量：新增 `firedasr_onnx`、
+> `crispasr_qwen3` 两路引擎和它们的文档、许可声明。没有向上游提 PR，跟上游走 merge。
 > 详见 [docs/引擎扩展-FireRed与CrispASR.md](docs/引擎扩展-FireRed与CrispASR.md)。
 
 ![demo](assets/demo.png)
@@ -144,6 +145,12 @@ A: `Win+R` 输入 `shell:startup` 打开启动文件夹，将服务端、客户�
 | [**五笔编码反查**](https://github.com/HaujetZhao/wubi86-revert-query) | 86 五笔编码在线反查 | [点击即用](https://haujetzhao.github.io/wubi86-revert-query/) |
 | [**快捷键映射图**](https://github.com/HaujetZhao/ShortcutMapper_Chinese) | 可视化、交互式的快捷键映射图 (中文版) | [点击即用](https://haujetzhao.github.io/ShortcutMapper_Chinese/) |
 
+
+## 📄 许可
+
+本仓库整体以 [GNU AGPL-3.0](LICENSE) 分发。来自上游的代码保留其原始 MIT 版权与许可声明，
+见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；`firedasr_onnx` 引擎涉及的第三方组件
+见 `core/server/engines/firedasr_onnx/chain/THIRD_PARTY_NOTICES.md`。
 
 ## ❤️ 致谢
 
