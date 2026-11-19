@@ -14,7 +14,7 @@
 - 仓库：[takomitkm/High-Accuracy-Offline-ASR](https://github.com/takomitkm/High-Accuracy-Offline-ASR)
 - 分支/路径：`gpu` 分支 `CrispASR-FireRed/onnx/`
 - 版本：commit `1bac7e6`（2026-10-17）
-- 许可：Unlicense（公有领域），全文见 `chain/licenses/UNLICENSE.txt`
+- 许可：0BSD，全文见 `chain/licenses/0BSD.txt`
 
 ## FireRedVAD `infer_onnx.py`
 

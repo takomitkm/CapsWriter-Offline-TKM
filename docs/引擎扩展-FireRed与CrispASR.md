@@ -264,7 +264,7 @@ RTF 越难看——RTF 这个指标本身对短句不友好，看绝对耗时更
   也没有提 PR。跟上游用 merge，不用 squash，避免把上游提交改写。
 - `firedasr_onnx` 的链代码：
   [takomitkm/High-Accuracy-Offline-ASR](https://github.com/takomitkm/High-Accuracy-Offline-ASR)
-  的 `gpu` 分支 `CrispASR-FireRed/onnx/`（commit `1bac7e6`，2026-10-17），Unlicense。
+  的 `gpu` 分支 `CrispASR-FireRed/onnx/`（commit `1bac7e6`，2026-10-17），0BSD。
   相对来源仓库只做了四件事：删掉注释里的本机绝对路径、把 `fetch_assets.py` 默认落点
   改成本仓库的 `models/`、补 `requirements-cuda.txt` 与 `licenses/`、补文档。
   推理逻辑、`GRAPH_BUILDS` 和逐件 sha256 清单未改。

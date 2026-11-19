@@ -12,7 +12,7 @@ CapsWriter 主进程自带一份 sherpa-onnx（上游 Paraformer 和 CT-Transfor
 代码取自 [takomitkm/High-Accuracy-Offline-ASR](https://github.com/takomitkm/High-Accuracy-Offline-ASR)
 的 `gpu` 分支 `CrispASR-FireRed/onnx/`（commit `1bac7e6`，2026-10-17），
 `models/fireredvad-onnx/infer_onnx.py` 也一并放在本目录，方便 worker 直接 import。
-该仓库的链代码以 Unlicense 捐献到公有领域，见 `licenses/UNLICENSE.txt`。
+该仓库的链代码以 0BSD 授权（无署名要求），见 `licenses/0BSD.txt`。
 
 相对来源仓库，本 fork 只做了这些改动：
 
@@ -159,6 +159,6 @@ RTX 4060 Laptop，16.45 s 中文音频，热态：
 
 ## 许可
 
-链代码来自上述仓库，Unlicense（公有领域）；`infer_onnx.py` 来自 FireRedVAD 的
+链代码来自上述仓库，0BSD；`infer_onnx.py` 来自 FireRedVAD 的
 Apache-2.0 发布件；FireRedPunc 的 LICENSE 随资源下载到 `fireredpunc-onnx/LICENSE`。
 完整出处见 `THIRD_PARTY_NOTICES.md`。

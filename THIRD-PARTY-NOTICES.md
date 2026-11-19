@@ -32,7 +32,7 @@ SOFTWARE.
 ```
 
 `firedasr_onnx`、`crispasr_qwen3` 两路引擎引入的第三方件（FireRed ONNX 链代码
-Unlicense、FireRedVAD `infer_onnx.py` Apache-2.0、其余为运行时下载的模型与工具）
+0BSD、FireRedVAD `infer_onnx.py` Apache-2.0、其余为运行时下载的模型与工具）
 另见 [core/server/engines/firedasr_onnx/chain/THIRD_PARTY_NOTICES.md](core/server/engines/firedasr_onnx/chain/THIRD_PARTY_NOTICES.md)。
 
 本仓库不包含任何模型权重、GGUF、可执行文件或 CUDA 运行库。
