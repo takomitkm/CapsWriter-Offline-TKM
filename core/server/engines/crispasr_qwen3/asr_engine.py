@@ -45,8 +45,10 @@ class CrispAsrQwen3Stream(RecognitionStream):
         try:
             r = self.engine.client.request(self._audio, self._sr)
         except CrispAsrError as ex:
+            # 识别失败必须让用户看见：由 pipeline 转成错误帧回给客户端，
+            # 这里不再静默吞掉异常
             logger.error(f"Qwen3-ASR 识别失败：{ex}")
-            return
+            raise
         text = r.get("text", "")
         self.result.text = text
         self.result.duration = float(r.get("audio_s") or 0.0)

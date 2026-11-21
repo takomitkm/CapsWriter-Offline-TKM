@@ -55,6 +55,8 @@ class CrispAsrServerClient:
         self._lock = threading.Lock()
         self._log_path = ROOT / "logs" / "crispasr_qwen3_server.log"
         self._pid_path = ROOT / "logs" / "crispasr_qwen3_server.pid"
+        # 连续超时计数：用于判断服务是否卡死需要重启
+        self._consecutive_timeouts = 0
 
     # ---------- 生命周期 ----------
     @staticmethod
@@ -197,21 +199,75 @@ class CrispAsrServerClient:
                            f"改用 replace 解析")
             return json.loads(raw.decode("utf-8", "replace"))
 
-    def request(self, pcm, sr, timeout=None):
+    def _probe_healthy(self) -> bool:
+        """探测服务是否还在正常响应（卡死时 /health 也会超时）"""
+        try:
+            with self._lock:
+                if not self._alive():
+                    return False
+                self._get("/health", timeout=2.0)
+            return True
+        except Exception:
+            return False
+
+    def _restart_service(self) -> None:
+        """重启 CrispASR 服务（进程卡死时的自愈手段）"""
         with self._lock:
-            self.ensure()
-            dur = len(pcm) / max(1, int(sr))
-            limit = timeout or (30.0 + 4.0 * dur)
-            t0 = time.time()
-            data = self._post_wav(_wav_bytes(pcm, int(sr)), limit)
-            total = time.time() - t0
-            text = (data.get("text") or "").strip()
-            return {
-                "text": text,
-                "audio_s": float(data.get("duration") or dur),
-                "segments": data.get("segments") or [],
-                "ms": {"total": round(total, 3)},
-            }
+            logger.warning("正在重启 CrispASR Qwen3 服务")
+            self.close(force=True)
+            self.start()
+
+    def request(self, pcm, sr, timeout=None, retries=1):
+        """向 CrispASR 发一次推理请求。
+
+        本机实测（2026-11-21）：CrispASR 会偶发卡住，一段 2~4 秒的语音
+        服务端要算 80~211 秒，客户端等到上限就报"识别失败"。这种卡顿是
+        瞬时且会自愈的（事后重放同一段音频 1 秒就出结果），所以这里：
+          1) 把超时上限从 30+4×时长 放宽到 60+8×时长；
+          2) 超时后自动重试一次；
+          3) 重试前先探活，服务无响应（或连续超时）就直接重启它。
+        """
+        dur = len(pcm) / max(1, int(sr))
+        limit = timeout or (60.0 + 8.0 * dur)
+        wav = _wav_bytes(pcm, int(sr))
+        attempt = 0
+        while True:
+            try:
+                with self._lock:
+                    self.ensure()
+                    t0 = time.time()
+                    data = self._post_wav(wav, limit)
+                    total = time.time() - t0
+                self._consecutive_timeouts = 0
+                text = (data.get("text") or "").strip()
+                return {
+                    "text": text,
+                    "audio_s": float(data.get("duration") or dur),
+                    "segments": data.get("segments") or [],
+                    "ms": {"total": round(total, 3)},
+                }
+            except (TimeoutError, CrispAsrError) as ex:
+                self._consecutive_timeouts += 1
+                logger.warning(
+                    f"CrispASR 请求失败（第 {attempt + 1} 次，"
+                    f"{type(ex).__name__}: {ex}）")
+                if attempt < retries:
+                    attempt += 1
+                    if self._probe_healthy():
+                        logger.warning("CrispASR 服务仍在响应，直接重试该请求")
+                    else:
+                        logger.warning("CrispASR 服务无响应，重启后再重试")
+                        self._restart_service()
+                    time.sleep(1.0)
+                    continue
+                # 重试用尽：连续超时说明服务卡死，重启它以便下次可用
+                if self._consecutive_timeouts >= 2:
+                    logger.warning("CrispASR 连续超时，重启服务以恢复可用状态")
+                    try:
+                        self._restart_service()
+                    except Exception as ex2:
+                        logger.error(f"重启 CrispASR 服务失败: {ex2}")
+                raise
 
     def close(self, force=False):
         proc, log = self._proc, self._log
