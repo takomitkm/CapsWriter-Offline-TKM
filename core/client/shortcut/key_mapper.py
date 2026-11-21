@@ -24,6 +24,14 @@ IS_WINDOWS = sys.platform == 'win32'
 IS_LINUX = sys.platform.startswith('linux')
 IS_MACOS = sys.platform == 'darwin'
 
+# 可恢复的切换键（需要录音完成后恢复状态的锁键）
+# 跨平台常量：shortcut_config.is_toggle_key() 依赖它判断"可恢复"属性
+RESTORABLE_KEYS = {
+    'caps_lock',    # 大写锁定
+    'num_lock',     # 数字键盘锁定
+    'scroll_lock',  # 滚动锁定
+}
+
 
 class KeyMapper:
     """按键映射器（平台无关门面：特殊键枚举 + 名称/对象互转）"""
